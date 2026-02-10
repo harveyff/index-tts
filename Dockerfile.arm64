@@ -19,7 +19,10 @@ WORKDIR /app
 # 1. 安装系统依赖
 # 注意：pynini 需要特定版本的 OpenFST，Ubuntu 22.04 的 libfst-dev 可能不兼容
 # 因此我们从源码编译 OpenFST 1.8.2（与 pynini 2.1.6 兼容）
-RUN apt-get update && apt-get install -y \
+# 移除了 software-properties-common（不是必需的，且依赖很多包）
+# 使用重试机制处理网络问题
+RUN apt-get update --fix-missing || apt-get update && \
+    apt-get install -y --fix-missing --no-install-recommends \
     ffmpeg \
     git \
     git-lfs \
@@ -30,12 +33,12 @@ RUN apt-get update && apt-get install -y \
     python3.10 \
     python3.10-dev \
     python3-pip \
-    software-properties-common \
     autoconf \
     automake \
     libtool \
     make \
     g++ \
+    ca-certificates \
     && git lfs install \
     && rm -rf /var/lib/apt/lists/*
 
