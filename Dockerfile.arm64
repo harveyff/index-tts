@@ -10,13 +10,15 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
     TORCH_CUDA_ARCH_LIST="" \
     CUDA_HOME=/usr/local/cuda \
-    PATH=/usr/local/cuda/bin:${PATH} \
-    LD_LIBRARY_PATH=/usr/local/cuda/lib64
+    PATH=/usr/local/cuda/bin:/usr/local/bin:${PATH} \
+    LD_LIBRARY_PATH=/usr/local/lib:/usr/local/cuda/lib64 \
+    PKG_CONFIG_PATH=/usr/local/lib/pkgconfig
 
 WORKDIR /app
 
 # 1. 安装系统依赖
-# 注意：libfst-dev 是 pynini 编译所需的 OpenFST 库
+# 注意：pynini 需要特定版本的 OpenFST，Ubuntu 22.04 的 libfst-dev 可能不兼容
+# 因此我们从源码编译 OpenFST 1.8.2（与 pynini 2.1.6 兼容）
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     git \
@@ -29,9 +31,26 @@ RUN apt-get update && apt-get install -y \
     python3.10-dev \
     python3-pip \
     software-properties-common \
-    libfst-dev \
+    autoconf \
+    automake \
+    libtool \
+    make \
+    g++ \
     && git lfs install \
     && rm -rf /var/lib/apt/lists/*
+
+# 1.1. 从源码编译安装 OpenFST 1.8.2（与 pynini 2.1.6 兼容）
+RUN cd /tmp && \
+    wget http://www.openfst.org/twiki/pub/FST/FstDownload/openfst-1.8.2.tar.gz && \
+    tar -xzf openfst-1.8.2.tar.gz && \
+    cd openfst-1.8.2 && \
+    ./configure --enable-static --enable-shared --enable-far --enable-lookahead-fsts --enable-const-fsts --enable-pdt --enable-ngram-fsts --prefix=/usr/local && \
+    make -j$(nproc) && \
+    make install && \
+    ldconfig && \
+    cd / && \
+    rm -rf /tmp/openfst-1.8.2* && \
+    echo "OpenFST 1.8.2 安装完成"
 
 # 2. 安装 CUDA Toolkit (ARM64/SBSA 版本) - 容器内安装，无需宿主机安装
 # NVIDIA 为 ARM 架构提供 SBSA (Server Base System Architecture) 版本的 CUDA
