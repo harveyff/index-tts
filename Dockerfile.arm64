@@ -40,8 +40,11 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # 1.1. 从源码编译安装 OpenFST 1.8.2（与 pynini 2.1.6 兼容）
+# 使用 SourceForge 作为下载源（OpenFST 的官方镜像）
 RUN cd /tmp && \
-    wget http://www.openfst.org/twiki/pub/FST/FstDownload/openfst-1.8.2.tar.gz && \
+    wget --no-check-certificate --timeout=60 --tries=3 \
+        "https://sourceforge.net/projects/openfst/files/openfst/1.8.2/openfst-1.8.2.tar.gz/download" \
+        -O openfst-1.8.2.tar.gz && \
     tar -xzf openfst-1.8.2.tar.gz && \
     cd openfst-1.8.2 && \
     ./configure --enable-static --enable-shared --enable-far --enable-lookahead-fsts --enable-const-fsts --enable-pdt --enable-ngram-fsts --prefix=/usr/local && \
