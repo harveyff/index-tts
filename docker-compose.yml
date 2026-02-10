@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  indextts:
+    build: .
+    container_name: indextts
+    ports:
+      - "7860:7860"
+    volumes:
+      # 挂载模型文件目录（需要先下载模型文件）
+      - ./checkpoints:/app/checkpoints
+      # 挂载输出目录
+      - ./outputs:/app/outputs
+      # 挂载提示音频目录
+      - ./prompts:/app/prompts
+      # 可选：挂载示例文件
+      - ./examples:/app/examples
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    environment:
+      - GRADIO_SERVER_NAME=0.0.0.0
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    # 如果需要查看日志，可以取消下面的注释
+    # logging:
+    #   driver: "json-file"
+    #   options:
+    #     max-size: "10m"
+    #     max-file: "3"
+

@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  indextts:
+    build:
+      context: .
+      dockerfile: Dockerfile.arm64
+    container_name: indextts-arm64
+    platform: linux/arm64
+    ports:
+      - "7860:7860"
+    volumes:
+      # 挂载模型文件目录（需要先下载模型文件）
+      - ./checkpoints:/app/checkpoints
+      # 挂载输出目录
+      - ./outputs:/app/outputs
+      # 挂载提示音频目录
+      - ./prompts:/app/prompts
+      # 可选：挂载示例文件
+      - ./examples:/app/examples
+      # 如果宿主机已安装 CUDA Toolkit，可以挂载（可选）
+      # - /usr/local/cuda:/usr/local/cuda:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    environment:
+      - GRADIO_SERVER_NAME=0.0.0.0
+      - PYTHONUNBUFFERED=1
+      # CUDA 环境变量（如果容器内安装了 CUDA）
+      - CUDA_HOME=/usr/local/cuda
+      - PATH=/usr/local/cuda/bin:${PATH}
+      - LD_LIBRARY_PATH=/usr/local/cuda/lib64:${LD_LIBRARY_PATH}
+    restart: unless-stopped
+    # 如果需要查看日志，可以取消下面的注释
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+

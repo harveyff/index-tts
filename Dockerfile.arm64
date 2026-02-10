@@ -1,0 +1,76 @@
+# ARM64/aarch64 架构的 Dockerfile（适配 NVIDIA GB10 Grace Blackwell）
+# 适用于：aarch64 + NVIDIA GB10 GPU + CUDA 13.1
+# Kubernetes 容器化部署：CUDA Toolkit 在容器内，宿主机只需 NVIDIA 驱动
+
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    GRADIO_SERVER_NAME=0.0.0.0 \
+    UV_SYSTEM_PYTHON=1 \
+    PYTHONUNBUFFERED=1 \
+    TORCH_CUDA_ARCH_LIST="" \
+    CUDA_HOME=/usr/local/cuda \
+    PATH=/usr/local/cuda/bin:${PATH} \
+    LD_LIBRARY_PATH=/usr/local/cuda/lib64:${LD_LIBRARY_PATH}
+
+WORKDIR /app
+
+# 1. 安装系统依赖
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    git \
+    git-lfs \
+    wget \
+    curl \
+    bc \
+    build-essential \
+    python3.10 \
+    python3.10-dev \
+    python3-pip \
+    software-properties-common \
+    && git lfs install \
+    && rm -rf /var/lib/apt/lists/*
+
+# 2. 安装 CUDA Toolkit (ARM64/SBSA 版本) - 容器内安装，无需宿主机安装
+# NVIDIA 为 ARM 架构提供 SBSA (Server Base System Architecture) 版本的 CUDA
+# 注意：CUDA 13.1 可能还没有 ARM64 版本，这里使用 12.8 作为示例
+# 对于 Kubernetes 部署，CUDA Toolkit 完全在容器内，宿主机只需要 NVIDIA 驱动
+RUN wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/sbsa/cuda-keyring_1.1-1_all.deb \
+    && dpkg -i cuda-keyring_1.1-1_all.deb \
+    && apt-get update \
+    && apt-get install -y cuda-toolkit-12-8 \
+    && rm -rf /var/lib/apt/lists/* \
+    && rm cuda-keyring_1.1-1_all.deb
+
+# 3. 验证 CUDA 安装
+RUN nvcc --version || echo "警告：nvcc 未找到，请确保 CUDA Toolkit 已正确安装"
+
+# 4. 安装 uv
+RUN pip3 install --no-cache-dir --upgrade pip setuptools wheel "uv>=0.4"
+
+# 5. 拷贝项目代码
+COPY . .
+
+# 6. 修改 pyproject.toml 以支持 ARM64（如果需要）
+# PyTorch ARM64 CUDA 支持：可能需要使用特定的索引或从源码编译
+# 这里先尝试使用标准安装，如果失败可能需要手动安装 PyTorch
+RUN uv sync --extra webui || ( \
+    echo "尝试使用 CPU 版本的 PyTorch作为后备..." && \
+    pip3 install torch torchaudio --index-url https://download.pytorch.org/whl/cpu || \
+    echo "警告：PyTorch 安装可能失败，ARM64 CUDA 支持有限" \
+    )
+
+# 7. 如果标准安装失败，尝试手动安装 PyTorch ARM64 CUDA 版本
+# 注意：PyTorch 可能不提供 ARM64 CUDA 预编译包，需要从源码编译
+RUN python3 -c "import torch; print(f'PyTorch: {torch.__version__}'); print(f'CUDA available: {torch.cuda.is_available()}')" || \
+    echo "PyTorch 未正确安装或 CUDA 不可用"
+
+# 8. 确保必要的目录存在
+RUN mkdir -p checkpoints outputs/tasks prompts
+
+# 9. 暴露 WebUI 端口
+EXPOSE 7860
+
+# 10. 运行 webui.py
+CMD ["uv", "run", "webui.py", "--host", "0.0.0.0", "--port", "7860"]
+

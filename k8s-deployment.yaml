@@ -1,0 +1,114 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: indextts
+  labels:
+    app: indextts
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: indextts
+  template:
+    metadata:
+      labels:
+        app: indextts
+    spec:
+      # 使用 ARM64 节点
+      nodeSelector:
+        kubernetes.io/arch: arm64
+      containers:
+      - name: indextts
+        image: your-registry/indextts:arm64  # 替换为你的镜像地址
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 7860
+          name: http
+          protocol: TCP
+        env:
+        - name: GRADIO_SERVER_NAME
+          value: "0.0.0.0"
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        # CUDA 环境变量（容器内已安装 CUDA Toolkit）
+        - name: CUDA_HOME
+          value: "/usr/local/cuda"
+        - name: PATH
+          value: "/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+        - name: LD_LIBRARY_PATH
+          value: "/usr/local/cuda/lib64:/usr/local/lib"
+        resources:
+          limits:
+            # 请求 GPU 资源（需要 NVIDIA GPU Device Plugin）
+            nvidia.com/gpu: 1
+          requests:
+            nvidia.com/gpu: 1
+        volumeMounts:
+        - name: checkpoints
+          mountPath: /app/checkpoints
+        - name: outputs
+          mountPath: /app/outputs
+        - name: prompts
+          mountPath: /app/prompts
+        # 健康检查
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 7860
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 7860
+          initialDelaySeconds: 30
+          periodSeconds: 10
+      volumes:
+      - name: checkpoints
+        persistentVolumeClaim:
+          claimName: indextts-checkpoints  # 需要创建 PVC
+      - name: outputs
+        persistentVolumeClaim:
+          claimName: indextts-outputs  # 需要创建 PVC
+      - name: prompts
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: indextts-service
+spec:
+  type: LoadBalancer  # 或 ClusterIP，根据需求
+  ports:
+  - port: 80
+    targetPort: 7860
+    protocol: TCP
+    name: http
+  selector:
+    app: indextts
+---
+# PVC 示例（需要根据实际存储类调整）
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: indextts-checkpoints
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi  # 根据模型大小调整
+  # storageClassName: your-storage-class
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: indextts-outputs
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi  # 根据输出文件大小调整
+  # storageClassName: your-storage-class
+
