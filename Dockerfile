@@ -1,4 +1,7 @@
 # 使用 devel 版本以支持编译 C++/CUDA 扩展（BigVGAN 等需要）
+# 注意：此 Dockerfile 适用于 x86_64 架构
+# 如果在 ARM64 机器上构建，请使用：docker build --platform linux/amd64 ...
+# 或者使用 Dockerfile.arm64（ARM64 架构，但 PyTorch CUDA 支持有限）
 FROM pytorch/pytorch:2.8.0-cuda12.8-cudnn9-devel
 
 ENV DEBIAN_FRONTEND=noninteractive \

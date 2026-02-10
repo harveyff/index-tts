@@ -51,19 +51,26 @@ RUN pip3 install --no-cache-dir --upgrade pip setuptools wheel "uv>=0.4"
 # 5. 拷贝项目代码
 COPY . .
 
-# 6. 修改 pyproject.toml 以支持 ARM64（如果需要）
-# PyTorch ARM64 CUDA 支持：可能需要使用特定的索引或从源码编译
-# 这里先尝试使用标准安装，如果失败可能需要手动安装 PyTorch
-RUN uv sync --extra webui || ( \
-    echo "尝试使用 CPU 版本的 PyTorch作为后备..." && \
-    pip3 install torch torchaudio --index-url https://download.pytorch.org/whl/cpu || \
-    echo "警告：PyTorch 安装可能失败，ARM64 CUDA 支持有限" \
-    )
+# 6. 安装依赖（ARM64 架构）
+# 重要：由于 PyTorch 2.8.0+cu128 没有 ARM64 wheel，pyproject.toml 已配置为
+# 在 ARM64 上不使用 CUDA 索引，会自动回退到标准 PyPI 的 PyTorch
+# 
+# 必须删除锁文件（如果存在），因为它可能是在 x86_64 上生成的，包含不兼容的 CUDA 版本
+# 然后重新生成适合 ARM64 平台的锁文件
+RUN if [ -f uv.lock ]; then \
+        echo "检测到 uv.lock（可能是在 x86_64 上生成的），删除并重新生成以适配 ARM64 平台..." && \
+        rm -f uv.lock; \
+    fi && \
+    echo "为 ARM64 平台重新生成锁文件..." && \
+    uv lock && \
+    echo "安装依赖..." && \
+    uv sync --extra webui
 
-# 7. 如果标准安装失败，尝试手动安装 PyTorch ARM64 CUDA 版本
-# 注意：PyTorch 可能不提供 ARM64 CUDA 预编译包，需要从源码编译
-RUN python3 -c "import torch; print(f'PyTorch: {torch.__version__}'); print(f'CUDA available: {torch.cuda.is_available()}')" || \
-    echo "PyTorch 未正确安装或 CUDA 不可用"
+# 7. 验证 PyTorch 安装
+# 注意：ARM64 上可能只有 CPU 版本的 PyTorch 可用
+# 如果确实需要 CUDA 支持，可能需要从源码编译或使用其他 CUDA 版本
+RUN python3 -c "import torch; print(f'PyTorch: {torch.__version__}'); print(f'CUDA available: {torch.cuda.is_available()}'); print(f'CUDA version: {torch.version.cuda if torch.cuda.is_available() else \"CPU only\"}')" || \
+    echo "警告：PyTorch 验证失败，可能需要手动安装"
 
 # 8. 确保必要的目录存在
 RUN mkdir -p checkpoints outputs/tasks prompts
