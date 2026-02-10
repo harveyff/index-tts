@@ -16,19 +16,23 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 WORKDIR /app
 
+# 0. 配置 apt 源，使用 archive.ubuntu.com 作为备用
+RUN sed -i 's|http://ports.ubuntu.com|http://archive.ubuntu.com|g' /etc/apt/sources.list.d/*.list 2>/dev/null || true && \
+    sed -i 's|http://ports.ubuntu.com|http://archive.ubuntu.com|g' /etc/apt/sources.list 2>/dev/null || true
+
 # 1. 安装系统依赖
 # 注意：pynini 需要特定版本的 OpenFST，Ubuntu 22.04 的 libfst-dev 可能不兼容
 # 因此我们从源码编译 OpenFST 1.8.2（与 pynini 2.1.6 兼容）
-# 移除了 software-properties-common（不是必需的，且依赖很多包）
-# 使用重试机制处理网络问题
-RUN apt-get update --fix-missing || apt-get update && \
-    apt-get install -y --fix-missing --no-install-recommends \
-    ffmpeg \
+# 将安装分成多个步骤，避免单个包失败导致整个安装失败
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    ca-certificates \
     git \
     git-lfs \
     wget \
     curl \
     bc \
+    && apt-get install -y --no-install-recommends \
     build-essential \
     python3.10 \
     python3.10-dev \
@@ -38,7 +42,8 @@ RUN apt-get update --fix-missing || apt-get update && \
     libtool \
     make \
     g++ \
-    ca-certificates \
+    && apt-get install -y --no-install-recommends ffmpeg || \
+       (echo "警告：ffmpeg 安装失败，跳过" && true) \
     && git lfs install \
     && rm -rf /var/lib/apt/lists/*
 
