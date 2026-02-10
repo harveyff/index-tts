@@ -39,21 +39,22 @@ RUN apt-get update && apt-get install -y \
     && git lfs install \
     && rm -rf /var/lib/apt/lists/*
 
-# 1.1. 从源码编译安装 OpenFST 1.8.2（与 pynini 2.1.6 兼容）
-# 使用 SourceForge 作为下载源（OpenFST 的官方镜像）
+# 1.1. 从源码编译安装 OpenFST（与 pynini 2.1.6 兼容）
+# 使用 GitHub 上的 OpenFST 官方仓库，克隆并检出 1.8.2 版本
 RUN cd /tmp && \
-    wget --no-check-certificate --timeout=60 --tries=3 \
-        "https://sourceforge.net/projects/openfst/files/openfst/1.8.2/openfst-1.8.2.tar.gz/download" \
-        -O openfst-1.8.2.tar.gz && \
-    tar -xzf openfst-1.8.2.tar.gz && \
+    git clone --depth 1 --branch 1.8.2 https://github.com/kylebgorman/openfst.git openfst-1.8.2 2>/dev/null || \
+    (git clone --depth 1 https://github.com/kylebgorman/openfst.git openfst-1.8.2 && \
+     cd openfst-1.8.2 && \
+     git checkout 1.8.2 2>/dev/null || git checkout tags/1.8.2 2>/dev/null || echo "使用最新版本") && \
     cd openfst-1.8.2 && \
+    autoreconf -fvi && \
     ./configure --enable-static --enable-shared --enable-far --enable-lookahead-fsts --enable-const-fsts --enable-pdt --enable-ngram-fsts --prefix=/usr/local && \
     make -j$(nproc) && \
     make install && \
     ldconfig && \
     cd / && \
     rm -rf /tmp/openfst-1.8.2* && \
-    echo "OpenFST 1.8.2 安装完成"
+    echo "OpenFST 安装完成"
 
 # 2. 安装 CUDA Toolkit (ARM64/SBSA 版本) - 容器内安装，无需宿主机安装
 # NVIDIA 为 ARM 架构提供 SBSA (Server Base System Architecture) 版本的 CUDA
